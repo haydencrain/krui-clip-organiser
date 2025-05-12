@@ -3,45 +3,45 @@
 # Function to display usage
 usage() {
     echo "Usage: $0"
-    echo "This script will prompt for a person's name and organize their photos and videos"
-    echo "from all day folders into a master folder."
+    echo "This script will organize all photos and videos from day folders into a Collated folder, organized by person."
     exit 1
 }
 
-# Check if rsync is installed
-if ! command -v rsync &> /dev/null; then
-    echo "Error: rsync is not installed. Please install it first."
-    echo "On macOS, you can install it using: brew install rsync"
-    exit 1
-fi
+# Create Collated folder
+collated_folder="Collated"
+mkdir -p "$collated_folder"
 
-# Prompt for person's name
-read -p "Enter the person's name (e.g., Felipe, Hayden, etc.): " person_name
-
-# Create master folder for the person
-master_folder="${person_name}_Master"
-mkdir -p "$master_folder"
-
-# Find all day folders (matching pattern YYYYMMDD Day X)
+# Process each day folder
 for day_folder in *"Day"*; do
     if [ -d "$day_folder" ]; then
         echo "Processing $day_folder..."
         
-        # Create corresponding folder in master directory
-        mkdir -p "$master_folder/$day_folder"
+        # Process all person folders in this day folder
+        for person_folder in "$day_folder"/*/; do
+            if [ -d "$person_folder" ]; then
+                person_name=$(basename "$person_folder")
+                
+                # Check if there are any files to move
+                if [ "$(ls -A "$person_folder")" ]; then
+                    echo "  Moving $person_name's content..."
+                    
+                    # Create person's folder if it doesn't exist
+                    mkdir -p "$collated_folder/$person_name"
+                    
+                    # Create day folder under person's folder and move content
+                    mkdir -p "$collated_folder/$person_name/$day_folder"
+                    mv "$person_folder"/* "$collated_folder/$person_name/$day_folder/" 2>/dev/null || true
+                else
+                    echo "  Removing empty folder for $person_name..."
+                fi
+                
+                # Remove the person folder whether it had content or not
+                rmdir "$person_folder" 2>/dev/null || true
+            fi
+        done
         
-        # Copy person's specific content if it exists
-        if [ -d "$day_folder/$person_name" ]; then
-            echo "  Copying $person_name's content..."
-            rsync -av --progress "$day_folder/$person_name/" "$master_folder/$day_folder/"
-        fi
-        
-        # Copy Shared content
-        if [ -d "$day_folder/Shared" ]; then
-            echo "  Copying Shared content..."
-            rsync -av --progress "$day_folder/Shared/" "$master_folder/$day_folder/"
-        fi
+        rmdir "$day_folder" 2>/dev/null || true
     fi
 done
 
-echo "Organization complete! All content has been copied to $master_folder" 
+echo "Organization complete! All content has been moved to $collated_folder" 
